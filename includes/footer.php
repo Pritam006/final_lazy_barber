@@ -9,9 +9,7 @@
                     <p class="small mt-2 mb-0 text-secondary">Premium grooming, effortless booking.</p>
                 </div>
                 <div class="col-md-4 mb-3 mb-md-0">
-                    <?php if(isset($_SESSION['userid'])): ?>
-                        <a href="dashboard.php" class="text-white text-decoration-none mx-2 hover-white">Dashboard</a>
-                    <?php endif; ?>
+                    <!-- Links removed -->
                 </div>
                 <div class="col-md-4 text-md-end">
                     <p class="small mb-0">&copy; <?php echo date('Y'); ?> Lazy Barber. All rights reserved.</p>

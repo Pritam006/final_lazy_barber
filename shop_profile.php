@@ -76,8 +76,24 @@ include 'includes/header.php';
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body p-4">
-        <!-- Step 1: Date/Time -->
+        <!-- Step 1: Select Barber -->
         <div id="wizard-step-1">
+            <h6 class="text-white mb-3">Select Barber</h6>
+            <div class="glass-card p-3 mb-4 d-flex align-items-center border-secondary" style="cursor: pointer; border: 1px solid var(--white);">
+                <div class="bg-dark rounded-circle me-3" style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                    <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($shop['name']); ?>&background=random&color=fff" alt="Barber" style="width: 100%; height: 100%; object-fit: cover;">
+                </div>
+                <div>
+                    <h6 class="text-white mb-0 fw-bold"><?php echo htmlspecialchars($shop['name']); ?></h6>
+                    <small class="text-grey">Senior Barber</small>
+                </div>
+                <div class="ms-auto text-white">&#10003;</div>
+            </div>
+            <button class="btn btn-primary-custom w-100 py-2" onclick="nextStep(2)">Continue to Date & Time</button>
+        </div>
+
+        <!-- Step 2: Date/Time -->
+        <div id="wizard-step-2" class="d-none">
             <h6 class="text-white mb-3">Select Date & Time</h6>
             <input type="date" class="form-control bg-dark text-white border-secondary mb-3" id="bookDate" required>
             <div class="row g-2 mb-4">
@@ -86,11 +102,14 @@ include 'includes/header.php';
                 <div class="col-4"><button class="btn btn-outline-light w-100 time-slot">10:00</button></div>
                 <!-- Mock slots for demo -->
             </div>
-            <button class="btn btn-primary-custom w-100 py-2" onclick="nextStep(2)">Continue</button>
+            <div class="d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-secondary" onclick="nextStep(1)">Back</button>
+                <button class="btn btn-primary-custom px-4" onclick="nextStep(3)">Continue</button>
+            </div>
         </div>
         
-        <!-- Step 2: Confirm -->
-        <div id="wizard-step-2" class="d-none">
+        <!-- Step 3: Confirm -->
+        <div id="wizard-step-3" class="d-none">
             <h6 class="text-white mb-3">Confirm Details</h6>
             <div class="bg-dark p-3 rounded mb-4">
                 <p class="text-light-grey mb-1">Service: <span class="text-white fw-bold" id="confirm-service"></span></p>
@@ -103,7 +122,7 @@ include 'includes/header.php';
                 <input type="hidden" name="date" id="input_date">
                 <input type="hidden" name="time" id="input_time">
                 <div class="d-flex justify-content-between">
-                    <button type="button" class="btn btn-outline-secondary" onclick="nextStep(1)">Back</button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="nextStep(2)">Back</button>
                     <button type="submit" class="btn btn-primary-custom px-4">Confirm Booking</button>
                 </div>
             </form>
@@ -141,7 +160,12 @@ function nextStep(step) {
     if(step === 1) {
         document.getElementById('wizard-step-1').classList.remove('d-none');
         document.getElementById('wizard-step-2').classList.add('d-none');
+        document.getElementById('wizard-step-3').classList.add('d-none');
     } else if (step === 2) {
+        document.getElementById('wizard-step-1').classList.add('d-none');
+        document.getElementById('wizard-step-2').classList.remove('d-none');
+        document.getElementById('wizard-step-3').classList.add('d-none');
+    } else if (step === 3) {
         let dateVal = document.getElementById('bookDate').value;
         if(!dateVal || !selectedTime) {
             alert('Please select a date and time slot.');
@@ -154,7 +178,8 @@ function nextStep(step) {
         document.getElementById('confirm-time').innerText = selectedTime;
         
         document.getElementById('wizard-step-1').classList.add('d-none');
-        document.getElementById('wizard-step-2').classList.remove('d-none');
+        document.getElementById('wizard-step-2').classList.add('d-none');
+        document.getElementById('wizard-step-3').classList.remove('d-none');
     }
 }
 

@@ -4,7 +4,7 @@ require_once 'config/database.php';
 include 'includes/header.php';
 
 // Fetch all active barbers (shops)
-$stmt = $pdo->query("SELECT userid, name, email FROM users WHERE role = 'barber' AND is_active = 1 LIMIT 4");
+$stmt = $pdo->query("SELECT userid, name, email, phone FROM users WHERE role = 'barber' AND is_active = 1 LIMIT 4");
 $shops = $stmt->fetchAll();
 ?>
 
@@ -44,8 +44,18 @@ $shops = $stmt->fetchAll();
                     <span class="badge bg-white text-black position-absolute top-0 start-50 translate-middle rounded-pill px-3 py-2 border border-dark">
                         3 slots left today!
                     </span>
-                    <h5 class="text-white mt-3 fw-bold"><?php echo htmlspecialchars($shop['name']); ?></h5>
-                    <p class="text-light-grey small mb-3">Premium cuts & styling.</p>
+                    <h5 class="text-white mt-3 fw-bold mb-1"><?php echo htmlspecialchars($shop['name']); ?></h5>
+                    <p class="text-light-grey small mb-2"><i class="text-grey">Sydney, NSW</i></p>
+                    
+                    <div class="mb-3 text-light-grey small">
+                        <div class="d-flex justify-content-between border-bottom border-secondary pb-1 mb-1">
+                            <span>Hours:</span> <span class="text-white">09:00 AM - 05:00 PM</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Phone:</span> <span class="text-white"><?php echo htmlspecialchars($shop['phone'] ?? '0400 000 000'); ?></span>
+                        </div>
+                    </div>
+                    
                     <a href="shop_profile.php?id=<?php echo $shop['userid']; ?>" class="btn btn-outline-light w-100 btn-sm">View Shop</a>
                 </div>
             </div>

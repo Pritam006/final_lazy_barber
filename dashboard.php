@@ -109,7 +109,10 @@ include 'includes/header.php';
                     
                     <!-- Appointments -->
                     <div class="tab-pane fade" id="v-pills-appointments" role="tabpanel">
-                        <h4 class="text-white fw-bold mb-4">Your Appointments</h4>
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h4 class="text-white fw-bold mb-0">Your Appointments</h4>
+                            <a href="shops.php" class="btn btn-outline-light btn-sm">+ Add Appointment</a>
+                        </div>
                         <?php if (count($appointments) > 0): ?>
                             <div class="table-responsive">
                                 <table class="table table-dark table-hover bg-transparent align-middle">
