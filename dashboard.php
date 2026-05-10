@@ -37,10 +37,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['cancel_appointment']))
 
 // Fetch Appointments
 $appStmt = $pdo->prepare("
-    SELECT a.*, s.name as service_name, b.name as barber_name 
+    SELECT a.*, s.name as service_name, b.name as barber_name, sh.name as shop_name 
     FROM appointments a
     JOIN services s ON a.serviceid = s.serviceid
     JOIN users b ON a.barberid = b.userid
+    JOIN SHOPS sh ON b.shopid = sh.shopid
     WHERE a.customerid = ?
     ORDER BY a.appointment_date DESC, a.time_slot DESC
 ");
@@ -130,7 +131,10 @@ include 'includes/header.php';
                                             <tr>
                                                 <td class="text-white"><?php echo $app['appointment_date']; ?><br><small class="text-light-grey"><?php echo $app['time_slot']; ?></small></td>
                                                 <td class="text-white"><?php echo htmlspecialchars($app['service_name']); ?></td>
-                                                <td class="text-white"><?php echo htmlspecialchars($app['barber_name']); ?></td>
+                                                <td class="text-white">
+                                                    <?php echo htmlspecialchars($app['shop_name']); ?><br>
+                                                    <small class="text-light-grey"><?php echo htmlspecialchars($app['barber_name']); ?></small>
+                                                </td>
                                                 <td>
                                                     <?php 
                                                         $badgeClass = 'bg-secondary';

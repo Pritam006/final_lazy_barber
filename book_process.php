@@ -9,7 +9,8 @@ if (!isset($_SESSION['userid'])) {
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $customerid = $_SESSION['userid'];
-    $barberid = $_POST['shop_id'] ?? null;
+    $shopid = $_POST['shop_id'] ?? null;
+    $barberid = $_POST['barber_id'] ?? null;
     $serviceid = $_POST['service_id'] ?? null;
     $date = $_POST['date'] ?? null;
     $time = $_POST['time'] ?? null;
@@ -37,8 +38,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $checkStmt->execute([$barberid, $date, $time]);
             
             if ($checkStmt->fetch()) {
-                $_SESSION['smart_route_msg'] = "Sorry, that time slot is already booked. Please choose another time.";
-                header("Location: shop_profile.php?id=" . $barberid);
+                $_SESSION['smart_route_msg'] = "Sorry, that barber is already booked at this time. Please choose another time or barber.";
+                header("Location: shop_profile.php?id=" . $shopid);
                 exit;
             }
 

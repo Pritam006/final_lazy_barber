@@ -2,9 +2,18 @@
 session_start();
 require_once 'config/database.php';
 include 'includes/header.php';
+// Handle search
+$searchQuery = $_GET['search'] ?? '';
+$searchParam = "%$searchQuery%";
 
-// Fetch all active barbers (shops)
-$stmt = $pdo->query("SELECT userid, name, email, phone FROM users WHERE role = 'barber' AND is_active = 1 LIMIT 4");
+// Fetch shops
+if (!empty($searchQuery)) {
+    $stmt = $pdo->prepare("SELECT shopid, name, address, suburb, open_time, phone FROM SHOPS WHERE is_active = 1 AND (name LIKE ? OR suburb LIKE ?)");
+    $stmt->execute([$searchParam, $searchParam]);
+} else {
+    // Show 5 recommendations
+    $stmt = $pdo->query("SELECT shopid, name, address, suburb, open_time, phone FROM SHOPS WHERE is_active = 1 LIMIT 5");
+}
 $shops = $stmt->fetchAll();
 ?>
 
@@ -12,14 +21,8 @@ $shops = $stmt->fetchAll();
     <!-- Search / Filter Bar -->
     <div class="glass-card p-4 mb-5 sticky-top mt-3" style="z-index: 1020; top: 70px;">
         <form method="GET" action="shops.php" class="row g-3 align-items-center">
-            <div class="col-md-4">
-                <input type="text" name="location" class="form-control bg-dark text-white border-secondary" placeholder="Location">
-            </div>
-            <div class="col-md-3">
-                <input type="date" name="date" class="form-control bg-dark text-white border-secondary">
-            </div>
-            <div class="col-md-3">
-                <input type="time" name="time" class="form-control bg-dark text-white border-secondary">
+            <div class="col-md-10">
+                <input type="text" name="search" class="form-control bg-dark text-white border-secondary" placeholder="Search by Shop Name or Suburb" value="<?php echo htmlspecialchars($searchQuery); ?>">
             </div>
             <div class="col-md-2">
                 <button type="submit" class="btn btn-primary-custom w-100">Search</button>
@@ -29,8 +32,10 @@ $shops = $stmt->fetchAll();
 
     <!-- Recommendations -->
     <div class="mb-4">
-        <h2 class="fw-bold text-white">Recommended For You</h2>
+        <h2 class="fw-bold text-white"><?php echo !empty($searchQuery) ? "Search Results for '" . htmlspecialchars($searchQuery) . "'" : "Recommended For You"; ?></h2>
+        <?php if(empty($searchQuery)): ?>
         <p class="text-grey">Top-rated barbers available near you.</p>
+        <?php endif; ?>
     </div>
 
     <div class="row g-4">
@@ -45,18 +50,18 @@ $shops = $stmt->fetchAll();
                         3 slots left today!
                     </span>
                     <h5 class="text-white mt-3 fw-bold mb-1"><?php echo htmlspecialchars($shop['name']); ?></h5>
-                    <p class="text-light-grey small mb-2"><i class="text-grey">Sydney, NSW</i></p>
+                    <p class="text-light-grey small mb-2"><i class="text-grey"><?php echo htmlspecialchars($shop['address']); ?></i></p>
                     
                     <div class="mb-3 text-light-grey small">
                         <div class="d-flex justify-content-between border-bottom border-secondary pb-1 mb-1">
-                            <span>Hours:</span> <span class="text-white">09:00 AM - 05:00 PM</span>
+                            <span>Hours:</span> <span class="text-white"><?php echo htmlspecialchars($shop['open_time']); ?></span>
                         </div>
                         <div class="d-flex justify-content-between">
-                            <span>Phone:</span> <span class="text-white"><?php echo htmlspecialchars($shop['phone'] ?? '0400 000 000'); ?></span>
+                            <span>Phone:</span> <span class="text-white"><?php echo htmlspecialchars($shop['phone']); ?></span>
                         </div>
                     </div>
                     
-                    <a href="shop_profile.php?id=<?php echo $shop['userid']; ?>" class="btn btn-outline-light w-100 btn-sm">View Shop</a>
+                    <a href="shop_profile.php?id=<?php echo $shop['shopid']; ?>" class="btn btn-outline-light w-100 btn-sm">View Shop</a>
                 </div>
             </div>
         </div>
