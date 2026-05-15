@@ -24,7 +24,7 @@
                 <ul class="navbar-nav ms-auto align-items-center">
                     <?php if(isset($_SESSION['userid'])): ?>
                         <li class="nav-item">
-                            <a class="nav-link" href="dashboard.php">Dashboard</a>
+                            <a class="nav-link" href="<?php echo ($_SESSION['role'] === 'barber') ? 'barber_dashboard.php' : 'dashboard.php'; ?>">Dashboard</a>
                         </li>
                         <li class="nav-item">
                             <a class="btn btn-outline-light btn-sm ms-3" href="logout.php">Logout</a>
