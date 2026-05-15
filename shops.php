@@ -3,26 +3,61 @@ session_start();
 require_once 'config/database.php';
 include 'includes/header.php';
 // Handle search
-$searchQuery = $_GET['search'] ?? '';
-$searchParam = "%$searchQuery%";
+$searchLoc = $_GET['location'] ?? '';
+$searchDate = $_GET['date'] ?? '';
+$searchTime = $_GET['time'] ?? '';
 
 // Fetch shops
-if (!empty($searchQuery)) {
-    $stmt = $pdo->prepare("SELECT shopid, name, address, suburb, open_time, phone FROM SHOPS WHERE is_active = 1 AND (name LIKE ? OR suburb LIKE ?)");
-    $stmt->execute([$searchParam, $searchParam]);
-} else {
-    // Show 5 recommendations
-    $stmt = $pdo->query("SELECT shopid, name, address, suburb, open_time, phone FROM SHOPS WHERE is_active = 1 LIMIT 5");
+$sql = "SELECT shopid, name, address, suburb, open_time, phone FROM SHOPS WHERE is_active = 1";
+$params = [];
+
+if (!empty($searchLoc)) {
+    $sql .= " AND (name LIKE ? OR suburb LIKE ? OR address LIKE ?)";
+    $params[] = "%$searchLoc%";
+    $params[] = "%$searchLoc%";
+    $params[] = "%$searchLoc%";
 }
+
+if (!empty($searchDate) && !empty($searchTime)) {
+    // Filter shops that have at least one barber available at the given date and time
+    $sql .= " AND shopid IN (
+        SELECT shopid FROM USERS 
+        WHERE role = 'barber' AND is_active = 1 
+        AND userid NOT IN (
+            SELECT barberid FROM appointments 
+            WHERE appointment_date = ? AND time_slot = ? AND status != 'cancelled'
+        )
+    )";
+    // Ensure time has seconds for exact match in DB if needed, though HTML time input usually omits seconds if 00
+    $timeParam = (strlen($searchTime) == 5) ? $searchTime . ':00' : $searchTime;
+    $params[] = $searchDate;
+    $params[] = $timeParam;
+}
+
+if (empty($searchLoc) && empty($searchDate) && empty($searchTime)) {
+    $sql .= " LIMIT 5";
+}
+
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
 $shops = $stmt->fetchAll();
+
+$isSearch = (!empty($searchLoc) || !empty($searchDate) || !empty($searchTime));
+
 ?>
 
 <div class="container py-5 mt-5">
     <!-- Search / Filter Bar -->
     <div class="glass-card p-4 mb-5 sticky-top mt-3" style="z-index: 1020; top: 70px;">
         <form method="GET" action="shops.php" class="row g-3 align-items-center">
-            <div class="col-md-10">
-                <input type="text" name="search" class="form-control bg-dark text-white border-secondary" placeholder="Search by Shop Name or Suburb" value="<?php echo htmlspecialchars($searchQuery); ?>">
+            <div class="col-md-4">
+                <input type="text" name="location" class="form-control bg-dark text-white border-secondary" placeholder="Location or Shop Name" value="<?php echo htmlspecialchars($searchLoc); ?>">
+            </div>
+            <div class="col-md-3">
+                <input type="date" name="date" class="form-control bg-dark text-white border-secondary" value="<?php echo htmlspecialchars($searchDate); ?>">
+            </div>
+            <div class="col-md-3">
+                <input type="time" name="time" class="form-control bg-dark text-white border-secondary" value="<?php echo htmlspecialchars($searchTime); ?>">
             </div>
             <div class="col-md-2">
                 <button type="submit" class="btn btn-primary-custom w-100">Search</button>
@@ -32,8 +67,8 @@ $shops = $stmt->fetchAll();
 
     <!-- Recommendations -->
     <div class="mb-4">
-        <h2 class="fw-bold text-white"><?php echo !empty($searchQuery) ? "Search Results for '" . htmlspecialchars($searchQuery) . "'" : "Recommended For You"; ?></h2>
-        <?php if(empty($searchQuery)): ?>
+        <h2 class="fw-bold text-white"><?php echo $isSearch ? "Search Results" : "Recommended For You"; ?></h2>
+        <?php if(!$isSearch): ?>
         <p class="text-grey">Top-rated barbers available near you.</p>
         <?php endif; ?>
     </div>
