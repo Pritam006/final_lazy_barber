@@ -32,7 +32,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 unset($_SESSION['redirect_to']);
                 header("Location: $url");
             } else {
-                header("Location: dashboard.php");
+                if ($_SESSION['role'] === 'barber') {
+                    header("Location: barber_dashboard.php");
+                } else {
+                    header("Location: dashboard.php");
+                }
             }
             exit;
         } else {
