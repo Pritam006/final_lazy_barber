@@ -21,13 +21,36 @@ if (empty($user_message)) {
     exit;
 }
 
+require_once '../config/database.php';
+
+// Dynamically fetch platform context to "train" the AI
+$shopsContext = "Available Shops:\n";
+$shopStmt = $pdo->query("SELECT name, suburb FROM SHOPS LIMIT 10");
+while($s = $shopStmt->fetch()) {
+    $shopsContext .= "- " . $s['name'] . " in " . $s['suburb'] . "\n";
+}
+
+$servicesContext = "Popular Services:\n";
+$svcStmt = $pdo->query("SELECT name, price_aud FROM SERVICES LIMIT 5");
+while($svc = $svcStmt->fetch()) {
+    $servicesContext .= "- " . $svc['name'] . " ($" . $svc['price_aud'] . ")\n";
+}
+
+$system_prompt = "You are the Lazy Barber AI assistant. You help customers navigate our multi-shop barber booking platform based in Sydney. 
+Here is your live platform knowledge:
+$shopsContext
+$servicesContext
+
+Instructions for Booking: Tell the user to create an account, go to the 'Shops' page, choose a shop, select their preferred barber, and pick an available time slot.
+Rules: Be extremely polite, concise (max 2-3 sentences per reply), and only answer questions related to haircuts, barbers, or using this booking app.";
+
 // Prepare the payload for OpenRouter
 $payload = [
     "model" => "openai/gpt-oss-120b:free",
     "messages" => [
         [
             "role" => "system",
-            "content" => "You are the Lazy Barber AI assistant. You help customers find barbers, answer questions about haircuts, and provide polite, concise customer service. Keep answers brief (max 2-3 sentences)."
+            "content" => $system_prompt
         ],
         [
             "role" => "user",
@@ -47,12 +70,16 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, [
     "Content-Type: application/json"
 ]);
 
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // Bypass SSL verification for local XAMPP
+curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+
 $response = curl_exec($ch);
 $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$curl_error = curl_error($ch);
 curl_close($ch);
 
-if ($httpcode !== 200) {
-    echo json_encode(["error" => "Failed to communicate with AI.", "details" => $response]);
+if ($httpcode !== 200 || $response === false) {
+    echo json_encode(["error" => "Failed to communicate with AI.", "details" => $response, "curl_error" => $curl_error]);
     exit;
 }
 
