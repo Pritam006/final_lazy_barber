@@ -65,6 +65,114 @@ include 'includes/header.php';
     </div>
 </section>
 
+<!-- Chatbot Widget -->
+<div id="chatWidget" class="chat-widget position-fixed bottom-0 end-0 m-4" style="z-index: 1050; display: none;">
+    <div class="glass-card d-flex flex-column" style="width: 350px; height: 500px; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+        <!-- Header -->
+        <div class="bg-black p-3 border-bottom border-secondary d-flex justify-content-between align-items-center">
+            <h5 class="text-white mb-0 fw-bold fs-6"><i class="bi bi-robot text-light-grey me-2"></i> Lazy Barber AI</h5>
+            <button class="btn-close btn-close-white" onclick="toggleChat()"></button>
+        </div>
+        <!-- Messages -->
+        <div id="chatMessages" class="p-3 flex-grow-1 bg-dark" style="overflow-y: auto; scrollbar-width: none;">
+            <div class="mb-3 text-start">
+                <span class="bg-black text-white px-3 py-2 rounded-3 d-inline-block border border-secondary shadow-sm" style="max-width: 85%; font-size: 0.95rem;">
+                    Hello! I'm the Lazy Barber AI assistant. How can I help you find a fresh cut today?
+                </span>
+            </div>
+        </div>
+        <!-- Input -->
+        <div class="p-3 bg-black border-top border-secondary">
+            <form id="chatForm" onsubmit="sendMessage(event)" class="d-flex">
+                <input type="text" id="chatInput" class="form-control bg-dark text-white border-secondary me-2" placeholder="Type a message..." required autocomplete="off" style="border-radius: 10px;">
+                <button type="submit" class="btn btn-light rounded-circle px-3"><i class="bi bi-send-fill text-black"></i></button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Floating Bubble -->
+<button id="chatBubbleBtn" class="btn btn-light rounded-circle position-fixed bottom-0 end-0 m-4 shadow-lg d-flex align-items-center justify-content-center" style="width: 60px; height: 60px; z-index: 1040; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" onclick="toggleChat()">
+    <i class="bi bi-chat-dots-fill fs-3 text-black"></i>
+</button>
+
+<script>
+    function toggleChat() {
+        var widget = document.getElementById('chatWidget');
+        var bubble = document.getElementById('chatBubbleBtn');
+        if (widget.style.display === 'none') {
+            widget.style.display = 'block';
+            bubble.style.display = 'none';
+        } else {
+            widget.style.display = 'none';
+            bubble.style.display = 'flex';
+        }
+    }
+
+    async function sendMessage(e) {
+        e.preventDefault();
+        var input = document.getElementById('chatInput');
+        var message = input.value.trim();
+        if (!message) return;
+
+        // Add user message to UI
+        appendMessage(message, 'user');
+        input.value = '';
+
+        // Add loading indicator
+        var loadingId = appendMessage('', 'ai', true);
+
+        try {
+            const response = await fetch('api/chat.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: message })
+            });
+            const data = await response.json();
+            
+            // Remove loading indicator
+            document.getElementById(loadingId).remove();
+            
+            if (data.reply) {
+                appendMessage(data.reply, 'ai');
+            } else {
+                appendMessage('Oops, I ran into an error. Did you add the API Key?', 'ai');
+            }
+        } catch (error) {
+            document.getElementById(loadingId).remove();
+            appendMessage('Connection error.', 'ai');
+        }
+    }
+
+    function appendMessage(text, sender, isLoading = false) {
+        var msgContainer = document.getElementById('chatMessages');
+        var div = document.createElement('div');
+        div.className = 'mb-3 ' + (sender === 'user' ? 'text-end' : 'text-start');
+        
+        var span = document.createElement('span');
+        span.className = sender === 'user' 
+            ? 'bg-light text-black px-3 py-2 rounded-3 d-inline-block shadow-sm'
+            : 'bg-black text-white px-3 py-2 rounded-3 d-inline-block border border-secondary shadow-sm';
+        span.style.maxWidth = '85%';
+        span.style.fontSize = '0.95rem';
+        span.style.wordBreak = 'break-word';
+        
+        if (isLoading) {
+            span.innerHTML = '<span class="spinner-grow spinner-grow-sm text-grey" role="status" style="width: 10px; height: 10px;"></span><span class="spinner-grow spinner-grow-sm text-grey mx-1" role="status" style="width: 10px; height: 10px;"></span><span class="spinner-grow spinner-grow-sm text-grey" role="status" style="width: 10px; height: 10px;"></span>';
+            var id = 'loading_' + Date.now();
+            div.id = id;
+        } else {
+            span.innerText = text;
+        }
+        
+        div.appendChild(span);
+        msgContainer.appendChild(div);
+        msgContainer.scrollTop = msgContainer.scrollHeight;
+        
+        return isLoading ? div.id : null;
+    }
+</script>
+
 <?php
 include 'includes/footer.php';
 ?>
