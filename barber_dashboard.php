@@ -8,6 +8,18 @@ if (!isset($_SESSION['userid']) || $_SESSION['role'] !== 'barber') {
     exit;
 }
 
+// Shop Owner Restriction
+if (empty($_SESSION['is_shopowner'])) {
+    include 'includes/header.php';
+    echo '<div class="container py-5 mt-5 text-center min-vh-50 d-flex flex-column justify-content-center">';
+    echo '<h1 class="text-white fw-bold mb-3"><i class="bi bi-shield-lock text-warning"></i> Access Denied</h1>';
+    echo '<p class="text-grey fs-5">Dashboard access is currently restricted to Shop Owners only.</p>';
+    echo '<a href="logout.php" class="btn btn-outline-light mt-4 mx-auto" style="width: 150px;">Logout</a>';
+    echo '</div>';
+    include 'includes/footer.php';
+    exit;
+}
+
 $userid = $_SESSION['userid'];
 
 // Fetch Barber and Shop Profile
@@ -190,8 +202,9 @@ include 'includes/header.php';
                     <div class="bg-dark rounded-circle mx-auto mb-3" style="width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
                         <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($barber['name']); ?>&background=random&color=fff" alt="Barber" style="width: 100%; height: 100%; object-fit: cover;">
                     </div>
-                    <h5 class="text-white fw-bold mb-1"><?php echo htmlspecialchars($barber['name']); ?></h5>
-                    <small class="text-grey d-block mb-2">Barber at <strong class="text-light-grey"><?php echo htmlspecialchars($barber['shop_name']); ?></strong></small>
+                    <h5 class="text-white fw-bold mb-1"><?php echo htmlspecialchars($barber['name']); ?> <i class="bi bi-patch-check-fill text-warning ms-1" title="Shop Owner"></i></h5>
+                    <small class="text-warning fw-bold d-block mb-1">SHOP OWNER</small>
+                    <small class="text-grey d-block mb-2">at <strong class="text-light-grey"><?php echo htmlspecialchars($barber['shop_name']); ?></strong></small>
                 </div>
                 
                 <div class="nav flex-column nav-pills" id="v-pills-tab" role="tablist" aria-orientation="vertical">

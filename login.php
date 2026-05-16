@@ -13,8 +13,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $email = $_POST['email'] ?? '';
         $phone = $_POST['phone'] ?? '';
         $password = $_POST['password'] ?? '';
+        $role = $_POST['role'] ?? 'customer';
+        $shopid = ($role === 'barber' && !empty($_POST['shopid'])) ? $_POST['shopid'] : null;
         
-        $res = $auth->register($name, $email, $password, $phone);
+        $res = $auth->register($name, $email, $password, $phone, $role, $shopid);
         if ($res['success']) {
             $success = $res['message'];
         } else {
@@ -44,6 +46,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
 }
+
+// Fetch all shops for barber registration
+$shopsStmt = $pdo->query("SELECT shopid, name FROM SHOPS ORDER BY name ASC");
+$all_shops = $shopsStmt->fetchAll();
 
 // Check if we should show register tab by default
 $is_register = isset($_GET['action']) && $_GET['action'] == 'register';
@@ -115,6 +121,28 @@ include 'includes/header.php';
                         <label class="form-label text-light-grey">Password</label>
                         <input type="password" name="password" class="form-control bg-dark text-white border-secondary" required>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label text-light-grey">Register As</label>
+                        <div class="d-flex">
+                            <div class="form-check me-4">
+                                <input class="form-check-input" type="radio" name="role" id="roleCustomer" value="customer" checked onchange="toggleShopDropdown()">
+                                <label class="form-check-label text-white" for="roleCustomer">Customer</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="role" id="roleBarber" value="barber" onchange="toggleShopDropdown()">
+                                <label class="form-check-label text-white" for="roleBarber">Barber</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-4" id="shopSelectDiv" style="display: none;">
+                        <label class="form-label text-light-grey">Select Your Shop</label>
+                        <select name="shopid" class="form-select bg-dark text-white border-secondary">
+                            <option value="">-- Choose a Shop --</option>
+                            <?php foreach($all_shops as $s): ?>
+                                <option value="<?php echo $s['shopid']; ?>"><?php echo htmlspecialchars($s['name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                     <button type="submit" class="btn btn-primary-custom w-100 py-2">Create Account</button>
                 </form>
             </div>
@@ -134,6 +162,18 @@ include 'includes/header.php';
             e.target.classList.remove('text-grey');
         });
     });
+
+    function toggleShopDropdown() {
+        var role = document.querySelector('input[name="role"]:checked').value;
+        var shopDiv = document.getElementById('shopSelectDiv');
+        if (role === 'barber') {
+            shopDiv.style.display = 'block';
+            shopDiv.querySelector('select').required = true;
+        } else {
+            shopDiv.style.display = 'none';
+            shopDiv.querySelector('select').required = false;
+        }
+    }
 </script>
 
 <?php include 'includes/footer.php'; ?>

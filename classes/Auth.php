@@ -9,7 +9,7 @@ class Auth {
         $this->pdo = $pdo;
     }
 
-    public function register($name, $email, $password, $phone, $role = 'customer') {
+    public function register($name, $email, $password, $phone, $role = 'customer', $shopid = null) {
         // Check if email exists
         $stmt = $this->pdo->prepare("SELECT userid FROM users WHERE email = ?");
         $stmt->execute([$email]);
@@ -19,8 +19,8 @@ class Auth {
 
         $hash = password_hash($password, PASSWORD_BCRYPT);
         
-        $stmt = $this->pdo->prepare("INSERT INTO users (name, email, password_hash, phone, role) VALUES (?, ?, ?, ?, ?)");
-        if ($stmt->execute([$name, $email, $hash, $phone, $role])) {
+        $stmt = $this->pdo->prepare("INSERT INTO users (name, email, password_hash, phone, role, shopid) VALUES (?, ?, ?, ?, ?, ?)");
+        if ($stmt->execute([$name, $email, $hash, $phone, $role, $shopid])) {
             return ['success' => true, 'message' => 'Registration successful. Please login.'];
         }
         return ['success' => false, 'message' => 'Registration failed. Please try again.'];
@@ -39,6 +39,7 @@ class Auth {
             $_SESSION['userid'] = $user['userid'];
             $_SESSION['name'] = $user['name'];
             $_SESSION['role'] = $user['role'];
+            $_SESSION['is_shopowner'] = $user['is_shopowner'];
             $_SESSION['last_activity'] = time(); // For 30-min timeout
             
             return ['success' => true, 'user' => $user];
