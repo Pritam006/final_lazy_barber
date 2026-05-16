@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once 'config/database.php';
+require_once 'classes/NotificationManager.php';
 
 if (!isset($_SESSION['userid'])) {
     header("Location: login.php?msg=Please sign in to secure your appointment");
@@ -50,7 +51,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             ");
             // Note: Schema uses 'time_slot' instead of 'start_time' and 'end_time' in appointments table.
             if ($insertStmt->execute([$customerid, $barberid, $serviceid, $date, $time, $total_price])) {
-                $_SESSION['smart_route_msg'] = "Booking successful! You can view it in your dashboard.";
+                $appointmentid = $pdo->lastInsertId();
+                $notifManager = new NotificationManager($pdo);
+                $notifManager->sendBookingNotifications($appointmentid);
+
+                // Note: NotificationManager will set the toast, overriding smart_route_msg if we aren't careful, 
+                // but we can just use the toast.
                 header("Location: dashboard.php");
                 exit;
             }

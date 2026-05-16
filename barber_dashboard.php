@@ -91,6 +91,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $status = $_POST['new_status'];
         $statStmt = $pdo->prepare("UPDATE APPOINTMENTS SET status = ? WHERE appointmentid = ? AND barberid = ?");
         $statStmt->execute([$status, $appid, $userid]);
+        
+        require_once 'classes/NotificationManager.php';
+        $notifManager = new NotificationManager($pdo);
+        if ($status == 'cancelled') {
+            $notifManager->sendCancellation($appid, $barber['name']);
+        } else if ($status != 'pending') {
+            $notifManager->sendStatusUpdate($appid, $status);
+        }
+
         $msg = "Appointment status updated.";
     }
     

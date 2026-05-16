@@ -32,6 +32,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['cancel_appointment']))
     $appid = $_POST['appointment_id'];
     $cancelStmt = $pdo->prepare("UPDATE appointments SET status = 'cancelled' WHERE appointmentid = ? AND customerid = ?");
     $cancelStmt->execute([$appid, $userid]);
+    
+    require_once 'classes/NotificationManager.php';
+    $notifManager = new NotificationManager($pdo);
+    $notifManager->sendCancellation($appid, $user['name']);
+
     $msg = "Appointment cancelled successfully.";
 }
 

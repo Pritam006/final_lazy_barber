@@ -19,6 +19,29 @@
     </footer>
     <!-- Bootstrap 5 JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <?php if(isset($_SESSION['toast'])): ?>
+    <script>
+        const Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 4000,
+            timerProgressBar: true,
+            background: '#1a1a1a',
+            color: '#fff',
+            iconColor: '#28a745'
+        });
+
+        Toast.fire({
+            icon: 'success',
+            title: '<?php echo addslashes($_SESSION['toast']); ?>'
+        });
+    </script>
+    <?php unset($_SESSION['toast']); endif; ?>
+    
     <!-- Custom JS -->
     <script src="js/main.js"></script>
 </body>
