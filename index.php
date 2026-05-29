@@ -66,11 +66,14 @@ include 'includes/header.php';
 </section>
 
 <!-- Chatbot Widget -->
-<div id="chatWidget" class="chat-widget position-fixed bottom-0 end-0 m-4" style="z-index: 1050; display: none;">
-    <div class="glass-card d-flex flex-column" style="width: 350px; height: 500px; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+<div id="chatWidget" class="chat-widget position-fixed bottom-0 end-0 m-3 m-md-4" style="z-index: 1050; display: none; width: calc(100vw - 2rem); max-width: 350px;">
+    <div class="glass-card d-flex flex-column" style="height: 500px; max-height: calc(100vh - 6rem); border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
         <!-- Header -->
         <div class="bg-black p-3 border-bottom border-secondary d-flex justify-content-between align-items-center">
-            <h5 class="text-white mb-0 fw-bold fs-6"><i class="bi bi-robot text-light-grey me-2"></i> Lazy Barber AI</h5>
+            <h5 class="text-white mb-0 fw-bold fs-6 d-flex align-items-center">
+                <img src="img/ai_avatar.png" alt="AI" class="rounded-circle me-2" style="width: 30px; height: 30px; object-fit: cover; border: 1px solid #444;">
+                Lazy Barber AI
+            </h5>
             <button class="btn-close btn-close-white" onclick="toggleChat()"></button>
         </div>
         <!-- Messages -->
@@ -85,15 +88,15 @@ include 'includes/header.php';
         <div class="p-3 bg-black border-top border-secondary">
             <form id="chatForm" onsubmit="sendMessage(event)" class="d-flex">
                 <input type="text" id="chatInput" class="form-control bg-dark text-white border-secondary me-2" placeholder="Type a message..." required autocomplete="off" style="border-radius: 10px;">
-                <button type="submit" class="btn btn-light rounded-circle px-3"><i class="bi bi-send-fill text-black"></i></button>
+                <button type="submit" class="btn btn-light rounded-circle px-3 flex-shrink-0"><i class="bi bi-send-fill text-black"></i></button>
             </form>
         </div>
     </div>
 </div>
 
 <!-- Floating Bubble -->
-<button id="chatBubbleBtn" class="btn btn-light rounded-circle position-fixed bottom-0 end-0 m-4 shadow-lg d-flex align-items-center justify-content-center" style="width: 60px; height: 60px; z-index: 1040; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" onclick="toggleChat()">
-    <i class="bi bi-chat-dots-fill fs-3 text-black"></i>
+<button id="chatBubbleBtn" class="btn btn-black rounded-circle position-fixed bottom-0 end-0 m-3 m-md-4 shadow-lg d-flex align-items-center justify-content-center p-0" style="width: 65px; height: 65px; z-index: 1040; transition: transform 0.2s; border: 2px solid #555; overflow: hidden;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" onclick="toggleChat()">
+    <img src="img/ai_avatar.png" alt="AI Chat" style="width: 100%; height: 100%; object-fit: cover;">
 </button>
 
 <script>

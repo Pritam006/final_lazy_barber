@@ -81,9 +81,7 @@ $isSearch = (!empty($searchLoc) || !empty($searchDate) || !empty($searchTime));
                     <span class="text-secondary fs-1">&#128136;</span>
                 </div>
                 <div class="p-4 position-relative">
-                    <span class="badge bg-white text-black position-absolute top-0 start-50 translate-middle rounded-pill px-3 py-2 border border-dark">
-                        3 slots left today!
-                    </span>
+
                     <h5 class="text-white mt-3 fw-bold mb-1"><?php echo htmlspecialchars($shop['name']); ?></h5>
                     <p class="text-light-grey small mb-2"><i class="text-grey"><?php echo htmlspecialchars($shop['address']); ?></i></p>
                     

@@ -94,8 +94,10 @@ class NotificationManager {
             $mail->isHTML(true);
             $mail->Subject = $subject;
             $mail->Body    = $body;
+            
+            $mail->Timeout = 1; // Added to prevent UI delay when using dummy credentials
 
-            $mail->send();
+            @$mail->send();
             
             // Update DB to sent
             $this->pdo->prepare("UPDATE NOTIFICATIONS SET status = 'sent', sent_at = NOW() WHERE notifid = ?")->execute([$notifId]);

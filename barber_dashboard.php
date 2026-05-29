@@ -22,9 +22,12 @@ if (empty($_SESSION['is_shopowner'])) {
 
 $userid = $_SESSION['userid'];
 
+// Auto migrate shop avatar column if it doesn't exist
+try { $pdo->exec("ALTER TABLE SHOPS ADD COLUMN avatar VARCHAR(255) DEFAULT NULL"); } catch(PDOException $e) {}
+
 // Fetch Barber and Shop Profile
 $stmt = $pdo->prepare("
-    SELECT u.name, u.email, u.phone, u.shopid, s.name as shop_name 
+    SELECT u.name, u.email, u.phone, u.shopid, u.avatar, u.is_shopowner, s.name as shop_name, s.avatar as shop_avatar 
     FROM USERS u 
     JOIN SHOPS s ON u.shopid = s.shopid 
     WHERE u.userid = ?
@@ -49,6 +52,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (isset($_POST['update_profile'])) {
         $name = $_POST['name'];
         $phone = $_POST['phone'];
+        
+        // Handle Avatar Upload
+        if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
+            $uploadDir = 'img/avatars/';
+            if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
+            $fileName = time() . '_b_' . basename($_FILES['avatar']['name']);
+            $targetFile = $uploadDir . $fileName;
+            if (move_uploaded_file($_FILES['avatar']['tmp_name'], $targetFile)) {
+                $pdo->prepare("UPDATE USERS SET avatar = ? WHERE userid = ?")->execute([$fileName, $userid]);
+                $barber['avatar'] = $fileName;
+            }
+        }
+        
+        // Handle Shop Avatar Upload
+        if (isset($_FILES['shop_avatar']) && $_FILES['shop_avatar']['error'] === UPLOAD_ERR_OK) {
+            $uploadDir = 'img/avatars/';
+            if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
+            $fileName = time() . '_s_' . basename($_FILES['shop_avatar']['name']);
+            $targetFile = $uploadDir . $fileName;
+            if (move_uploaded_file($_FILES['shop_avatar']['tmp_name'], $targetFile)) {
+                $pdo->prepare("UPDATE SHOPS SET avatar = ? WHERE shopid = ?")->execute([$fileName, $barber['shopid']]);
+                $barber['shop_avatar'] = $fileName;
+            }
+        }
+
         $updateStmt = $pdo->prepare("UPDATE USERS SET name = ?, phone = ? WHERE userid = ?");
         $updateStmt->execute([$name, $phone, $userid]);
         $barber['name'] = $name;
@@ -120,15 +148,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 $schedule_date = $_GET['schedule_date'] ?? date('Y-m-d');
 
 // Fetch Appointments for Selected Date
-$todayStmt = $pdo->prepare("
-    SELECT a.*, s.name as service_name, c.name as customer_name, c.phone as customer_phone
-    FROM APPOINTMENTS a
-    JOIN SERVICES s ON a.serviceid = s.serviceid
-    JOIN USERS c ON a.customerid = c.userid
-    WHERE a.barberid = ? AND a.appointment_date = ?
-    ORDER BY a.time_slot ASC
-");
-$todayStmt->execute([$userid, $schedule_date]);
+if ($barber['is_shopowner']) {
+    $todayStmt = $pdo->prepare("
+        SELECT a.*, s.name as service_name, c.name as customer_name, c.phone as customer_phone, b.name as appointed_barber_name
+        FROM APPOINTMENTS a
+        JOIN SERVICES s ON a.serviceid = s.serviceid
+        JOIN USERS c ON a.customerid = c.userid
+        JOIN USERS b ON a.barberid = b.userid
+        WHERE b.shopid = ? AND a.appointment_date = ?
+        ORDER BY a.time_slot ASC
+    ");
+    $todayStmt->execute([$shopid, $schedule_date]);
+} else {
+    $todayStmt = $pdo->prepare("
+        SELECT a.*, s.name as service_name, c.name as customer_name, c.phone as customer_phone, b.name as appointed_barber_name
+        FROM APPOINTMENTS a
+        JOIN SERVICES s ON a.serviceid = s.serviceid
+        JOIN USERS c ON a.customerid = c.userid
+        JOIN USERS b ON a.barberid = b.userid
+        WHERE a.barberid = ? AND a.appointment_date = ?
+        ORDER BY a.time_slot ASC
+    ");
+    $todayStmt->execute([$userid, $schedule_date]);
+}
 $todays_appointments = $todayStmt->fetchAll();
 
 // Fetch Availability
@@ -148,57 +190,41 @@ $services = $srvStmt->fetchAll();
 // Calculate Stats
 $stat_today_count = count($todays_appointments);
 
-$revStmt = $pdo->prepare("SELECT SUM(total_price) as rev FROM APPOINTMENTS WHERE barberid = ? AND status = 'completed' AND appointment_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)");
-$revStmt->execute([$userid]);
-$week_revenue = $revStmt->fetchColumn() ?: 0.00;
-
-$custStmt = $pdo->prepare("SELECT COUNT(DISTINCT customerid) FROM APPOINTMENTS WHERE barberid = ?");
-$custStmt->execute([$userid]);
+if ($barber['is_shopowner']) {
+    $custStmt = $pdo->prepare("
+        SELECT COUNT(DISTINCT a.customerid) 
+        FROM APPOINTMENTS a
+        JOIN USERS b ON a.barberid = b.userid
+        WHERE b.shopid = ?
+    ");
+    $custStmt->execute([$shopid]);
+} else {
+    $custStmt = $pdo->prepare("
+        SELECT COUNT(DISTINCT a.customerid) 
+        FROM APPOINTMENTS a
+        WHERE a.barberid = ?
+    ");
+    $custStmt->execute([$userid]);
+}
 $total_customers = $custStmt->fetchColumn();
-
-// Analytics Calculations
-$compStmt = $pdo->prepare("SELECT COUNT(*) FROM APPOINTMENTS WHERE barberid = ? AND status = 'completed'");
-$compStmt->execute([$userid]);
-$completed_count = $compStmt->fetchColumn();
-
-$cancelStmt = $pdo->prepare("SELECT COUNT(*) FROM APPOINTMENTS WHERE barberid = ? AND status = 'cancelled'");
-$cancelStmt->execute([$userid]);
-$cancelled_count = $cancelStmt->fetchColumn();
-
-$total_ended = $completed_count + $cancelled_count;
-$completion_rate = $total_ended > 0 ? round(($completed_count / $total_ended) * 100) : 0;
 
 include 'includes/header.php';
 ?>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <div class="container py-5 mt-5">
     
     <!-- Top Statistics Row -->
     <div class="row g-4 mb-4">
-        <div class="col-md-3">
+        <div class="col-md-6">
             <div class="glass-card p-4 text-center border-secondary h-100">
                 <h6 class="text-grey mb-2">Today's Appointments</h6>
                 <h2 class="text-white fw-bold mb-0"><?php echo $stat_today_count; ?></h2>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-6">
             <div class="glass-card p-4 text-center border-secondary h-100">
-                <h6 class="text-grey mb-2">Week Revenue</h6>
-                <h2 class="text-white fw-bold mb-0">$<?php echo number_format($week_revenue, 2); ?></h2>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="glass-card p-4 text-center border-secondary h-100">
-                <h6 class="text-grey mb-2">Total Customers</h6>
+                <h6 class="text-grey mb-2"><?php echo $barber['is_shopowner'] ? 'Total Shop Customers' : 'Total Customers'; ?></h6>
                 <h2 class="text-white fw-bold mb-0"><?php echo $total_customers; ?></h2>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="glass-card p-4 text-center border-secondary h-100">
-                <h6 class="text-grey mb-2">Average Rating</h6>
-                <h2 class="text-white fw-bold mb-0">4.9 <span class="fs-5 text-warning">&#9733;</span></h2>
             </div>
         </div>
     </div>
@@ -209,10 +235,18 @@ include 'includes/header.php';
             <div class="glass-card p-4">
                 <div class="text-center mb-4">
                     <div class="bg-dark rounded-circle mx-auto mb-3" style="width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
-                        <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($barber['name']); ?>&background=random&color=fff" alt="Barber" style="width: 100%; height: 100%; object-fit: cover;">
+                        <?php if(!empty($barber['avatar'])): ?>
+                            <img src="img/avatars/<?php echo htmlspecialchars($barber['avatar']); ?>" alt="Barber" style="width: 100%; height: 100%; object-fit: cover;">
+                        <?php else: ?>
+                            <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($barber['name']); ?>&background=random&color=fff" alt="Barber" style="width: 100%; height: 100%; object-fit: cover;">
+                        <?php endif; ?>
                     </div>
-                    <h5 class="text-white fw-bold mb-1"><?php echo htmlspecialchars($barber['name']); ?> <i class="bi bi-patch-check-fill text-warning ms-1" title="Shop Owner"></i></h5>
-                    <small class="text-warning fw-bold d-block mb-1">SHOP OWNER</small>
+                    <h5 class="text-white fw-bold mb-1"><?php echo htmlspecialchars($barber['name']); ?> <?php if($barber['is_shopowner']): ?><i class="bi bi-patch-check-fill text-warning ms-1" title="Shop Owner"></i><?php endif; ?></h5>
+                    <?php if($barber['is_shopowner']): ?>
+                        <small class="text-warning fw-bold d-block mb-1">SHOP OWNER</small>
+                    <?php else: ?>
+                        <small class="text-info fw-bold d-block mb-1">BARBER</small>
+                    <?php endif; ?>
                     <small class="text-grey d-block mb-2">at <strong class="text-light-grey"><?php echo htmlspecialchars($barber['shop_name']); ?></strong></small>
                 </div>
                 
@@ -220,7 +254,6 @@ include 'includes/header.php';
                     <button class="nav-link active bg-transparent text-start border-bottom border-secondary rounded-0 py-3" id="v-pills-schedule-tab" data-bs-toggle="pill" data-bs-target="#v-pills-schedule" type="button" role="tab" style="color: var(--white);">Schedule</button>
                     <button class="nav-link bg-transparent text-start border-bottom border-secondary rounded-0 py-3" id="v-pills-availability-tab" data-bs-toggle="pill" data-bs-target="#v-pills-availability" type="button" role="tab" style="color: var(--light-grey);">Availability</button>
                     <button class="nav-link bg-transparent text-start border-bottom border-secondary rounded-0 py-3" id="v-pills-services-tab" data-bs-toggle="pill" data-bs-target="#v-pills-services" type="button" role="tab" style="color: var(--light-grey);">Services</button>
-                    <button class="nav-link bg-transparent text-start border-bottom border-secondary rounded-0 py-3" id="v-pills-analytics-tab" data-bs-toggle="pill" data-bs-target="#v-pills-analytics" type="button" role="tab" style="color: var(--light-grey);">Analytics</button>
                     <button class="nav-link bg-transparent text-start rounded-0 py-3" id="v-pills-profile-tab" data-bs-toggle="pill" data-bs-target="#v-pills-profile" type="button" role="tab" style="color: var(--light-grey);">Profile Settings</button>
                 </div>
             </div>
@@ -256,7 +289,7 @@ include 'includes/header.php';
                                     <div class="bg-dark p-3 rounded border border-secondary d-flex justify-content-between align-items-center">
                                         <div>
                                             <h5 class="text-white mb-1"><?php echo $app['time_slot']; ?> - <span class="fw-bold"><?php echo htmlspecialchars($app['customer_name']); ?></span></h5>
-                                            <p class="text-grey mb-0 small"><?php echo htmlspecialchars($app['service_name']); ?></p>
+                                            <p class="text-grey mb-0 small"><?php echo htmlspecialchars($app['service_name']); ?> • Barber: <?php echo htmlspecialchars($app['appointed_barber_name']); ?></p>
                                         </div>
                                         <div class="d-flex align-items-center">
                                             <form method="POST" class="me-2">
@@ -361,56 +394,22 @@ include 'includes/header.php';
                         </div>
                     </div>
 
-                    <!-- TAB 4: Analytics -->
-                    <div class="tab-pane fade" id="v-pills-analytics" role="tabpanel">
-                        <h4 class="text-white fw-bold mb-4">Performance Analytics</h4>
-                        <div class="row g-4">
-                            <div class="col-md-6">
-                                <div class="bg-dark p-4 rounded border border-secondary h-100">
-                                    <h6 class="text-grey mb-3">Weekly Revenue</h6>
-                                    <canvas id="revenueChart" width="400" height="200"></canvas>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="bg-dark p-4 rounded border border-secondary h-100">
-                                    <h6 class="text-grey mb-3">Popular Services</h6>
-                                    <ul class="list-unstyled mb-0">
-                                        <?php 
-                                        $sorted = $services;
-                                        usort($sorted, function($a, $b) { return $b['bookings'] <=> $a['bookings']; });
-                                        $top3 = array_slice($sorted, 0, 3);
-                                        foreach($top3 as $index => $t):
-                                        ?>
-                                        <li class="d-flex justify-content-between mb-2">
-                                            <span class="text-white"><?php echo htmlspecialchars($t['name']); ?></span>
-                                            <span class="badge bg-secondary rounded-pill"><?php echo $t['bookings']; ?> Bookings</span>
-                                        </li>
-                                        <?php endforeach; ?>
-                                    </ul>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="bg-dark p-4 rounded border border-secondary h-100">
-                                    <h6 class="text-grey mb-2">Completion Rate</h6>
-                                    <h2 class="text-white fw-bold mb-0"><?php echo $completion_rate; ?>%</h2>
-                                    <p class="text-light-grey small mb-0">Completed vs Cancelled</p>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="bg-dark p-4 rounded border border-secondary h-100">
-                                    <h6 class="text-grey mb-2">Total Customers</h6>
-                                    <h2 class="text-white fw-bold mb-0"><?php echo $total_customers; ?></h2>
-                                    <p class="text-light-grey small mb-0">All Time Unique Clients</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
 
                     <!-- TAB 5: Profile Settings -->
                     <div class="tab-pane fade" id="v-pills-profile" role="tabpanel">
                         <h4 class="text-white fw-bold mb-4">Profile Settings</h4>
-                        <form method="POST">
+                        <form method="POST" enctype="multipart/form-data">
                             <input type="hidden" name="update_profile" value="1">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label text-light-grey">Your Profile Picture</label>
+                                    <input type="file" name="avatar" class="form-control bg-dark text-white border-secondary" accept="image/*">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label text-light-grey">Shop Profile Picture</label>
+                                    <input type="file" name="shop_avatar" class="form-control bg-dark text-white border-secondary" accept="image/*">
+                                </div>
+                            </div>
                             <div class="mb-3">
                                 <label class="form-label text-light-grey">Full Name</label>
                                 <input type="text" name="name" class="form-control bg-dark text-white border-secondary" value="<?php echo htmlspecialchars($barber['name']); ?>" required>
@@ -609,40 +608,7 @@ include 'includes/header.php';
         modal.show();
     }
 
-    // Chart.js implementation for Analytics
-    document.addEventListener("DOMContentLoaded", function() {
-        const ctx = document.getElementById('revenueChart').getContext('2d');
-        const revChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-                datasets: [{
-                    label: 'Revenue ($)',
-                    data: [120, 190, 80, 220, 150, 300, 250], // Mock dataset since we don't have 7 day breakdown in PHP yet
-                    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                    borderColor: 'rgba(255, 255, 255, 1)',
-                    borderWidth: 1,
-                    borderRadius: 4
-                }]
-            },
-            options: {
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: { color: '#333' },
-                        ticks: { color: '#888' }
-                    },
-                    x: {
-                        grid: { display: false },
-                        ticks: { color: '#888' }
-                    }
-                },
-                plugins: {
-                    legend: { display: false }
-                }
-            }
-        });
-    });
+
 </script>
 
 <?php include 'includes/footer.php'; ?>

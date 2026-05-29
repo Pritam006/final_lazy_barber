@@ -10,8 +10,11 @@ if (!isset($_SESSION['userid'])) {
 
 $userid = $_SESSION['userid'];
 
+// Auto migrate avatar column if it doesn't exist
+try { $pdo->exec("ALTER TABLE USERS ADD COLUMN avatar VARCHAR(255) DEFAULT NULL"); } catch(PDOException $e) {}
+
 // Fetch User Profile
-$stmt = $pdo->prepare("SELECT name, email, phone FROM users WHERE userid = ?");
+$stmt = $pdo->prepare("SELECT name, email, phone, avatar FROM users WHERE userid = ?");
 $stmt->execute([$userid]);
 $user = $stmt->fetch();
 
@@ -19,6 +22,18 @@ $user = $stmt->fetch();
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_profile'])) {
     $name = $_POST['name'];
     $phone = $_POST['phone'];
+    
+    // Handle Avatar Upload
+    if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
+        $uploadDir = 'img/avatars/';
+        if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
+        $fileName = time() . '_' . basename($_FILES['avatar']['name']);
+        $targetFile = $uploadDir . $fileName;
+        if (move_uploaded_file($_FILES['avatar']['tmp_name'], $targetFile)) {
+            $pdo->prepare("UPDATE users SET avatar = ? WHERE userid = ?")->execute([$fileName, $userid]);
+            $user['avatar'] = $fileName;
+        }
+    }
     
     $updateStmt = $pdo->prepare("UPDATE users SET name = ?, phone = ? WHERE userid = ?");
     $updateStmt->execute([$name, $phone, $userid]);
@@ -62,8 +77,12 @@ include 'includes/header.php';
         <div class="col-md-3 mb-4">
             <div class="glass-card p-4">
                 <div class="text-center mb-4">
-                    <div class="bg-dark rounded-circle mx-auto mb-3" style="width: 80px; height: 80px; display: flex; align-items: center; justify-content: center;">
-                        <span class="text-secondary fs-2">&#128100;</span>
+                    <div class="bg-dark rounded-circle mx-auto mb-3" style="width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                        <?php if(!empty($user['avatar'])): ?>
+                            <img src="img/avatars/<?php echo htmlspecialchars($user['avatar']); ?>" alt="Profile" style="width: 100%; height: 100%; object-fit: cover;">
+                        <?php else: ?>
+                            <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($user['name']); ?>&background=random&color=fff" alt="Profile" style="width: 100%; height: 100%; object-fit: cover;">
+                        <?php endif; ?>
                     </div>
                     <h5 class="text-white fw-bold mb-0"><?php echo htmlspecialchars($user['name']); ?></h5>
                     <small class="text-grey">Customer</small>
@@ -119,7 +138,13 @@ include 'includes/header.php';
                             <h4 class="text-white fw-bold mb-0">Your Appointments</h4>
                             <a href="shops.php" class="btn btn-outline-light btn-sm">+ Add Appointment</a>
                         </div>
-                        <?php if (count($appointments) > 0): ?>
+                        <?php 
+                            $active_apps = array_filter($appointments, function($a) { return in_array($a['status'], ['pending', 'confirmed']); });
+                            $past_apps = array_filter($appointments, function($a) { return in_array($a['status'], ['completed', 'cancelled', 'no-show']); });
+                        ?>
+
+                        <h5 class="text-white fw-bold mt-4 mb-3">Active Appointments</h5>
+                        <?php if (count($active_apps) > 0): ?>
                             <div class="table-responsive">
                                 <table class="table table-dark table-hover bg-transparent align-middle">
                                     <thead>
@@ -132,7 +157,7 @@ include 'includes/header.php';
                                         </tr>
                                     </thead>
                                     <tbody class="border-top-0">
-                                        <?php foreach($appointments as $app): ?>
+                                        <?php foreach($active_apps as $app): ?>
                                             <tr>
                                                 <td class="text-white"><?php echo $app['appointment_date']; ?><br><small class="text-light-grey"><?php echo $app['time_slot']; ?></small></td>
                                                 <td class="text-white"><?php echo htmlspecialchars($app['service_name']); ?></td>
@@ -164,16 +189,62 @@ include 'includes/header.php';
                                 </table>
                             </div>
                         <?php else: ?>
-                            <p class="text-grey">You have no booking history.</p>
-                            <a href="shops.php" class="btn btn-primary-custom mt-3">Book Now</a>
+                            <div class="text-center py-4 bg-dark rounded border border-secondary">
+                                <p class="text-grey mb-0">No active appointments.</p>
+                            </div>
+                        <?php endif; ?>
+
+                        <h5 class="text-white fw-bold mt-5 mb-3">Past Appointments</h5>
+                        <?php if (count($past_apps) > 0): ?>
+                            <div class="table-responsive">
+                                <table class="table table-dark table-hover bg-transparent align-middle">
+                                    <thead>
+                                        <tr class="text-grey">
+                                            <th>Date & Time</th>
+                                            <th>Service</th>
+                                            <th>Barber</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="border-top-0">
+                                        <?php foreach($past_apps as $app): ?>
+                                            <tr>
+                                                <td class="text-white"><?php echo $app['appointment_date']; ?><br><small class="text-light-grey"><?php echo $app['time_slot']; ?></small></td>
+                                                <td class="text-white"><?php echo htmlspecialchars($app['service_name']); ?></td>
+                                                <td class="text-white">
+                                                    <?php echo htmlspecialchars($app['shop_name']); ?><br>
+                                                    <small class="text-light-grey"><?php echo htmlspecialchars($app['barber_name']); ?></small>
+                                                </td>
+                                                <td>
+                                                    <?php 
+                                                        $badgeClass = 'bg-secondary';
+                                                        if($app['status'] == 'completed') $badgeClass = 'bg-dark border border-secondary text-white';
+                                                        if($app['status'] == 'cancelled') $badgeClass = 'bg-danger';
+                                                        if($app['status'] == 'no-show') $badgeClass = 'bg-warning text-dark';
+                                                    ?>
+                                                    <span class="badge <?php echo $badgeClass; ?> rounded-pill px-3"><?php echo ucfirst($app['status']); ?></span>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php else: ?>
+                            <div class="text-center py-4 bg-dark rounded border border-secondary">
+                                <p class="text-grey mb-0">No past appointments.</p>
+                            </div>
                         <?php endif; ?>
                     </div>
                     
                     <!-- Profile Settings -->
                     <div class="tab-pane fade" id="v-pills-profile" role="tabpanel">
                         <h4 class="text-white fw-bold mb-4">Profile Settings</h4>
-                        <form method="POST" action="dashboard.php">
+                        <form method="POST" action="dashboard.php" enctype="multipart/form-data">
                             <input type="hidden" name="update_profile" value="1">
+                            <div class="mb-3">
+                                <label class="form-label text-light-grey">Profile Picture</label>
+                                <input type="file" name="avatar" class="form-control bg-dark text-white border-secondary" accept="image/*">
+                            </div>
                             <div class="mb-3">
                                 <label class="form-label text-light-grey">Full Name</label>
                                 <input type="text" name="name" class="form-control bg-dark text-white border-secondary" value="<?php echo htmlspecialchars($user['name']); ?>" required>

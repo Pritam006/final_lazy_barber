@@ -7,6 +7,14 @@ $auth = new Auth($pdo);
 $error = '';
 $success = '';
 
+if (isset($_GET['route'])) {
+    $route = $_GET['route'];
+    if (isset($_GET['id'])) {
+        $route .= '?id=' . $_GET['id'];
+    }
+    $_SESSION['redirect_to'] = $route;
+}
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (isset($_POST['action']) && $_POST['action'] == 'register') {
         $name = $_POST['name'] ?? '';
@@ -16,7 +24,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $role = $_POST['role'] ?? 'customer';
         $shopid = ($role === 'barber' && !empty($_POST['shopid'])) ? $_POST['shopid'] : null;
         
+        $isNewShop = false;
+        if ($shopid === 'new') {
+            $isNewShop = true;
+            $n_name = $_POST['new_shop_name'];
+            $n_addr = $_POST['new_shop_address'];
+            $n_sub = $_POST['new_shop_suburb'];
+            
+            $stmtShop = $pdo->prepare("INSERT INTO SHOPS (name, address, suburb) VALUES (?, ?, ?)");
+            $stmtShop->execute([$n_name, $n_addr, $n_sub]);
+            $shopid = $pdo->lastInsertId();
+        }
+        
         $res = $auth->register($name, $email, $password, $phone, $role, $shopid);
+        
+        if ($res['success'] && $isNewShop) {
+            $stmtUsr = $pdo->prepare("UPDATE USERS SET is_shopowner = 1 WHERE email = ?");
+            $stmtUsr->execute([$email]);
+        }
         if ($res['success']) {
             $success = $res['message'];
         } else {
@@ -136,12 +161,28 @@ include 'includes/header.php';
                     </div>
                     <div class="mb-4" id="shopSelectDiv" style="display: none;">
                         <label class="form-label text-light-grey">Select Your Shop</label>
-                        <select name="shopid" class="form-select bg-dark text-white border-secondary">
+                        <select name="shopid" id="shopid_select" class="form-select bg-dark text-white border-secondary" onchange="toggleNewShopFields()">
                             <option value="">-- Choose a Shop --</option>
+                            <option value="new">-- Create New Shop --</option>
                             <?php foreach($all_shops as $s): ?>
                                 <option value="<?php echo $s['shopid']; ?>"><?php echo htmlspecialchars($s['name']); ?></option>
                             <?php endforeach; ?>
                         </select>
+                    </div>
+
+                    <div id="newShopFields" style="display: none;" class="mb-4">
+                        <div class="mb-3">
+                            <label class="form-label text-light-grey">New Shop Name</label>
+                            <input type="text" name="new_shop_name" id="new_shop_name" class="form-control bg-dark text-white border-secondary">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-light-grey">Shop Address</label>
+                            <input type="text" name="new_shop_address" id="new_shop_address" class="form-control bg-dark text-white border-secondary">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-light-grey">Suburb</label>
+                            <input type="text" name="new_shop_suburb" id="new_shop_suburb" class="form-control bg-dark text-white border-secondary">
+                        </div>
                     </div>
                     <button type="submit" class="btn btn-primary-custom w-100 py-2">Create Account</button>
                 </form>
@@ -166,12 +207,32 @@ include 'includes/header.php';
     function toggleShopDropdown() {
         var role = document.querySelector('input[name="role"]:checked').value;
         var shopDiv = document.getElementById('shopSelectDiv');
+        var shopSelect = document.getElementById('shopid_select');
+        var newShopDiv = document.getElementById('newShopFields');
+        
         if (role === 'barber') {
             shopDiv.style.display = 'block';
-            shopDiv.querySelector('select').required = true;
+            shopSelect.required = true;
         } else {
             shopDiv.style.display = 'none';
-            shopDiv.querySelector('select').required = false;
+            shopSelect.required = false;
+            newShopDiv.style.display = 'none';
+        }
+    }
+
+    function toggleNewShopFields() {
+        var shopSelect = document.getElementById('shopid_select').value;
+        var newShopDiv = document.getElementById('newShopFields');
+        if (shopSelect === 'new') {
+            newShopDiv.style.display = 'block';
+            document.getElementById('new_shop_name').required = true;
+            document.getElementById('new_shop_address').required = true;
+            document.getElementById('new_shop_suburb').required = true;
+        } else {
+            newShopDiv.style.display = 'none';
+            document.getElementById('new_shop_name').required = false;
+            document.getElementById('new_shop_address').required = false;
+            document.getElementById('new_shop_suburb').required = false;
         }
     }
 </script>
