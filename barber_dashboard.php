@@ -74,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     // Add Service
-    if ($barber['is_shopowner'] && isset($_POST['add_service'])) {
+    if (isset($_POST['add_service'])) {
         $svc_name = $_POST['service_name'];
         $duration = $_POST['duration'];
         $price = $_POST['price'];
@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     
     // Edit Service
-    if ($barber['is_shopowner'] && isset($_POST['edit_service'])) {
+    if (isset($_POST['edit_service'])) {
         $svcid = $_POST['service_id'];
         $svc_name = $_POST['service_name'];
         $duration = $_POST['duration'];
@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     // Delete Service
-    if ($barber['is_shopowner'] && isset($_POST['delete_service'])) {
+    if (isset($_POST['delete_service'])) {
         $svcid = $_POST['service_id'];
         $delStmt = $pdo->prepare("DELETE FROM SERVICES WHERE serviceid = ? AND shopid = ?");
         $delStmt->execute([$svcid, $shopid]);
@@ -244,9 +244,7 @@ include 'includes/header.php';
                 <div class="nav flex-column nav-pills" id="v-pills-tab" role="tablist" aria-orientation="vertical">
                     <button class="nav-link active bg-transparent text-start border-bottom border-secondary rounded-0 py-3" id="v-pills-schedule-tab" data-bs-toggle="pill" data-bs-target="#v-pills-schedule" type="button" role="tab" style="color: var(--white);">Schedule</button>
                     <button class="nav-link bg-transparent text-start border-bottom border-secondary rounded-0 py-3" id="v-pills-availability-tab" data-bs-toggle="pill" data-bs-target="#v-pills-availability" type="button" role="tab" style="color: var(--light-grey);">Availability</button>
-                    <?php if($barber['is_shopowner']): ?>
-                        <button class="nav-link bg-transparent text-start border-bottom border-secondary rounded-0 py-3" id="v-pills-services-tab" data-bs-toggle="pill" data-bs-target="#v-pills-services" type="button" role="tab" style="color: var(--light-grey);">Services</button>
-                    <?php endif; ?>
+                    <button class="nav-link bg-transparent text-start border-bottom border-secondary rounded-0 py-3" id="v-pills-services-tab" data-bs-toggle="pill" data-bs-target="#v-pills-services" type="button" role="tab" style="color: var(--light-grey);">Services</button>
                     <button class="nav-link bg-transparent text-start rounded-0 py-3" id="v-pills-profile-tab" data-bs-toggle="pill" data-bs-target="#v-pills-profile" type="button" role="tab" style="color: var(--light-grey);">Profile Settings</button>
                 </div>
             </div>
