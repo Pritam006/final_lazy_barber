@@ -8,17 +8,6 @@ if (!isset($_SESSION['userid']) || $_SESSION['role'] !== 'barber') {
     exit;
 }
 
-// Shop Owner Restriction
-if (empty($_SESSION['is_shopowner'])) {
-    include 'includes/header.php';
-    echo '<div class="container py-5 mt-5 text-center min-vh-50 d-flex flex-column justify-content-center">';
-    echo '<h1 class="text-white fw-bold mb-3"><i class="bi bi-shield-lock text-warning"></i> Access Denied</h1>';
-    echo '<p class="text-grey fs-5">Dashboard access is currently restricted to Shop Owners only.</p>';
-    echo '<a href="logout.php" class="btn btn-outline-light mt-4 mx-auto" style="width: 150px;">Logout</a>';
-    echo '</div>';
-    include 'includes/footer.php';
-    exit;
-}
 
 $userid = $_SESSION['userid'];
 
@@ -65,8 +54,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         }
         
-        // Handle Shop Avatar Upload
-        if (isset($_FILES['shop_avatar']) && $_FILES['shop_avatar']['error'] === UPLOAD_ERR_OK) {
+        // Handle Shop Avatar Upload (Owners Only)
+        if ($barber['is_shopowner'] && isset($_FILES['shop_avatar']) && $_FILES['shop_avatar']['error'] === UPLOAD_ERR_OK) {
             $uploadDir = 'img/avatars/';
             if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
             $fileName = time() . '_s_' . basename($_FILES['shop_avatar']['name']);
@@ -85,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     // Add Service
-    if (isset($_POST['add_service'])) {
+    if ($barber['is_shopowner'] && isset($_POST['add_service'])) {
         $svc_name = $_POST['service_name'];
         $duration = $_POST['duration'];
         $price = $_POST['price'];
@@ -95,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     
     // Edit Service
-    if (isset($_POST['edit_service'])) {
+    if ($barber['is_shopowner'] && isset($_POST['edit_service'])) {
         $svcid = $_POST['service_id'];
         $svc_name = $_POST['service_name'];
         $duration = $_POST['duration'];
@@ -106,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     // Delete Service
-    if (isset($_POST['delete_service'])) {
+    if ($barber['is_shopowner'] && isset($_POST['delete_service'])) {
         $svcid = $_POST['service_id'];
         $delStmt = $pdo->prepare("DELETE FROM SERVICES WHERE serviceid = ? AND shopid = ?");
         $delStmt->execute([$svcid, $shopid]);
@@ -255,7 +244,9 @@ include 'includes/header.php';
                 <div class="nav flex-column nav-pills" id="v-pills-tab" role="tablist" aria-orientation="vertical">
                     <button class="nav-link active bg-transparent text-start border-bottom border-secondary rounded-0 py-3" id="v-pills-schedule-tab" data-bs-toggle="pill" data-bs-target="#v-pills-schedule" type="button" role="tab" style="color: var(--white);">Schedule</button>
                     <button class="nav-link bg-transparent text-start border-bottom border-secondary rounded-0 py-3" id="v-pills-availability-tab" data-bs-toggle="pill" data-bs-target="#v-pills-availability" type="button" role="tab" style="color: var(--light-grey);">Availability</button>
-                    <button class="nav-link bg-transparent text-start border-bottom border-secondary rounded-0 py-3" id="v-pills-services-tab" data-bs-toggle="pill" data-bs-target="#v-pills-services" type="button" role="tab" style="color: var(--light-grey);">Services</button>
+                    <?php if($barber['is_shopowner']): ?>
+                        <button class="nav-link bg-transparent text-start border-bottom border-secondary rounded-0 py-3" id="v-pills-services-tab" data-bs-toggle="pill" data-bs-target="#v-pills-services" type="button" role="tab" style="color: var(--light-grey);">Services</button>
+                    <?php endif; ?>
                     <button class="nav-link bg-transparent text-start rounded-0 py-3" id="v-pills-profile-tab" data-bs-toggle="pill" data-bs-target="#v-pills-profile" type="button" role="tab" style="color: var(--light-grey);">Profile Settings</button>
                 </div>
             </div>
@@ -291,7 +282,7 @@ include 'includes/header.php';
                                         <tr class="text-grey">
                                             <th>Date/Time</th>
                                             <th>Customer</th>
-                                            <th>Service</th>
+                                            <th>Service & Barber</th>
                                             <th>Status</th>
                                             <th>Actions</th>
                                         </tr>
@@ -304,7 +295,10 @@ include 'includes/header.php';
                                                     <small class="text-light-grey"><?php echo date('h:i A', strtotime($app['time_slot'])); ?></small>
                                                 </td>
                                                 <td class="text-white"><?php echo htmlspecialchars($app['customer_name']); ?></td>
-                                                <td class="text-light-grey"><?php echo htmlspecialchars($app['service_name']); ?></td>
+                                                <td class="text-white">
+                                                    <?php echo htmlspecialchars($app['service_name']); ?><br>
+                                                    <small class="text-light-grey">with <?php echo htmlspecialchars($app['appointed_barber_name']); ?></small>
+                                                </td>
                                                 <td>
                                                     <form method="POST">
                                                         <input type="hidden" name="update_status" value="1">
@@ -422,10 +416,12 @@ include 'includes/header.php';
                                     <label class="form-label text-light-grey">Your Profile Picture</label>
                                     <input type="file" name="avatar" class="form-control bg-dark text-white border-secondary" accept="image/*">
                                 </div>
+                                <?php if($barber['is_shopowner']): ?>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label text-light-grey">Shop Profile Picture</label>
                                     <input type="file" name="shop_avatar" class="form-control bg-dark text-white border-secondary" accept="image/*">
                                 </div>
+                                <?php endif; ?>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label text-light-grey">Full Name</label>
