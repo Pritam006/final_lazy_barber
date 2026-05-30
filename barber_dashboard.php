@@ -144,10 +144,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// Get Schedule Date from GET, default to today
-$schedule_date = $_GET['schedule_date'] ?? date('Y-m-d');
+// Get Schedule Month from GET, default to current month
+$schedule_month = $_GET['schedule_month'] ?? date('Y-m');
+$start_date = $schedule_month . '-01';
+$end_date = date('Y-m-t', strtotime($start_date));
 
-// Fetch Appointments for Selected Date
+// Fetch Appointments for Selected Month
 if ($barber['is_shopowner']) {
     $todayStmt = $pdo->prepare("
         SELECT a.*, s.name as service_name, c.name as customer_name, c.phone as customer_phone, b.name as appointed_barber_name
@@ -155,10 +157,10 @@ if ($barber['is_shopowner']) {
         JOIN SERVICES s ON a.serviceid = s.serviceid
         JOIN USERS c ON a.customerid = c.userid
         JOIN USERS b ON a.barberid = b.userid
-        WHERE b.shopid = ? AND a.appointment_date = ?
-        ORDER BY a.time_slot ASC
+        WHERE b.shopid = ? AND a.appointment_date BETWEEN ? AND ?
+        ORDER BY a.appointment_date ASC, a.time_slot ASC
     ");
-    $todayStmt->execute([$shopid, $schedule_date]);
+    $todayStmt->execute([$shopid, $start_date, $end_date]);
 } else {
     $todayStmt = $pdo->prepare("
         SELECT a.*, s.name as service_name, c.name as customer_name, c.phone as customer_phone, b.name as appointed_barber_name
@@ -166,12 +168,12 @@ if ($barber['is_shopowner']) {
         JOIN SERVICES s ON a.serviceid = s.serviceid
         JOIN USERS c ON a.customerid = c.userid
         JOIN USERS b ON a.barberid = b.userid
-        WHERE a.barberid = ? AND a.appointment_date = ?
-        ORDER BY a.time_slot ASC
+        WHERE a.barberid = ? AND a.appointment_date BETWEEN ? AND ?
+        ORDER BY a.appointment_date ASC, a.time_slot ASC
     ");
-    $todayStmt->execute([$userid, $schedule_date]);
+    $todayStmt->execute([$userid, $start_date, $end_date]);
 }
-$todays_appointments = $todayStmt->fetchAll();
+$month_appointments = $todayStmt->fetchAll();
 
 // Fetch Availability
 $availFetch = $pdo->prepare("SELECT * FROM AVAILABILITY WHERE barberid = ? ORDER BY day_of_week ASC");
@@ -188,7 +190,7 @@ $srvStmt->execute([$userid, $shopid]);
 $services = $srvStmt->fetchAll();
 
 // Calculate Stats
-$stat_today_count = count($todays_appointments);
+$stat_month_count = count($month_appointments);
 
 if ($barber['is_shopowner']) {
     $custStmt = $pdo->prepare("
@@ -217,8 +219,8 @@ include 'includes/header.php';
     <div class="row g-4 mb-4">
         <div class="col-md-6">
             <div class="glass-card p-4 text-center border-secondary h-100">
-                <h6 class="text-grey mb-2">Today's Appointments</h6>
-                <h2 class="text-white fw-bold mb-0"><?php echo $stat_today_count; ?></h2>
+                <h6 class="text-grey mb-2">Appointments This Month</h6>
+                <h2 class="text-white fw-bold mb-0"><?php echo $stat_month_count; ?></h2>
             </div>
         </div>
         <div class="col-md-6">
@@ -277,50 +279,65 @@ include 'includes/header.php';
                             <h4 class="text-white fw-bold mb-0">Schedule</h4>
                             
                             <form method="GET" class="d-flex">
-                                <input type="date" name="schedule_date" class="form-control bg-dark text-white border-secondary me-2" value="<?php echo htmlspecialchars($schedule_date); ?>" onchange="this.form.submit()">
+                                <input type="month" name="schedule_month" class="form-control bg-dark text-white border-secondary me-2" value="<?php echo htmlspecialchars($schedule_month); ?>" onchange="this.form.submit()">
                                 <button type="submit" class="btn btn-primary-custom btn-sm px-3">Search</button>
                             </form>
                         </div>
                         
-                        <?php if (count($todays_appointments) > 0): ?>
-                            <div class="row g-3">
-                                <?php foreach($todays_appointments as $app): ?>
-                                <div class="col-12">
-                                    <div class="bg-dark p-3 rounded border border-secondary d-flex justify-content-between align-items-center">
-                                        <div>
-                                            <h5 class="text-white mb-1"><?php echo $app['time_slot']; ?> - <span class="fw-bold"><?php echo htmlspecialchars($app['customer_name']); ?></span></h5>
-                                            <p class="text-grey mb-0 small"><?php echo htmlspecialchars($app['service_name']); ?> • Barber: <?php echo htmlspecialchars($app['appointed_barber_name']); ?></p>
-                                        </div>
-                                        <div class="d-flex align-items-center">
-                                            <form method="POST" class="me-2">
-                                                <input type="hidden" name="update_status" value="1">
-                                                <input type="hidden" name="appointment_id" value="<?php echo $app['appointmentid']; ?>">
-                                                <select name="new_status" class="form-select form-select-sm bg-black text-white border-secondary" onchange="this.form.submit()">
-                                                    <option value="pending" <?php if($app['status']=='pending') echo 'selected'; ?>>Pending</option>
-                                                    <option value="confirmed" <?php if($app['status']=='confirmed') echo 'selected'; ?>>Confirmed</option>
-                                                    <option value="completed" <?php if($app['status']=='completed') echo 'selected'; ?>>Completed</option>
-                                                    <option value="cancelled" <?php if($app['status']=='cancelled') echo 'selected'; ?>>Cancelled</option>
-                                                    <option value="no_show" <?php if($app['status']=='no_show') echo 'selected'; ?>>No Show</option>
-                                                </select>
-                                            </form>
-                                            <button class="btn btn-outline-light btn-sm" onclick="viewBooking(<?php echo htmlspecialchars(json_encode([
-                                                'id' => $app['appointmentid'],
-                                                'customer' => $app['customer_name'],
-                                                'phone' => $app['customer_phone'],
-                                                'service' => $app['service_name'],
-                                                'date' => $app['appointment_date'],
-                                                'time' => $app['time_slot'],
-                                                'price' => $app['total_price'],
-                                                'status' => $app['status']
-                                            ])); ?>)">View</button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <?php endforeach; ?>
+                        <?php if (count($month_appointments) > 0): ?>
+                            <div class="table-responsive">
+                                <table class="table table-dark table-hover bg-transparent align-middle">
+                                    <thead>
+                                        <tr class="text-grey">
+                                            <th>Date/Time</th>
+                                            <th>Customer</th>
+                                            <th>Service</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="border-top-0">
+                                        <?php foreach($month_appointments as $app): ?>
+                                            <tr>
+                                                <td class="text-white">
+                                                    <?php echo date('M d, Y', strtotime($app['appointment_date'])); ?><br>
+                                                    <small class="text-light-grey"><?php echo date('h:i A', strtotime($app['time_slot'])); ?></small>
+                                                </td>
+                                                <td class="text-white"><?php echo htmlspecialchars($app['customer_name']); ?></td>
+                                                <td class="text-light-grey"><?php echo htmlspecialchars($app['service_name']); ?></td>
+                                                <td>
+                                                    <form method="POST">
+                                                        <input type="hidden" name="update_status" value="1">
+                                                        <input type="hidden" name="appointment_id" value="<?php echo $app['appointmentid']; ?>">
+                                                        <select name="new_status" class="form-select form-select-sm bg-black text-white border-secondary" onchange="this.form.submit()">
+                                                            <option value="pending" <?php if($app['status']=='pending') echo 'selected'; ?>>Pending</option>
+                                                            <option value="confirmed" <?php if($app['status']=='confirmed') echo 'selected'; ?>>Confirmed</option>
+                                                            <option value="completed" <?php if($app['status']=='completed') echo 'selected'; ?>>Completed</option>
+                                                            <option value="cancelled" <?php if($app['status']=='cancelled') echo 'selected'; ?>>Cancelled</option>
+                                                            <option value="no_show" <?php if($app['status']=='no_show') echo 'selected'; ?>>No Show</option>
+                                                        </select>
+                                                    </form>
+                                                </td>
+                                                <td>
+                                                    <button class="btn btn-outline-light btn-sm" onclick="viewBooking(<?php echo htmlspecialchars(json_encode([
+                                                        'id' => $app['appointmentid'],
+                                                        'customer' => $app['customer_name'],
+                                                        'phone' => $app['customer_phone'],
+                                                        'service' => $app['service_name'],
+                                                        'date' => $app['appointment_date'],
+                                                        'time' => $app['time_slot'],
+                                                        'price' => $app['total_price'],
+                                                        'status' => $app['status']
+                                                    ])); ?>)">View</button>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
                             </div>
                         <?php else: ?>
-                            <div class="text-center py-5">
-                                <p class="text-grey mb-0">You have no appointments scheduled for this date.</p>
+                            <div class="text-center py-5 bg-dark rounded border border-secondary">
+                                <p class="text-grey mb-0">No appointments found for this month.</p>
                             </div>
                         <?php endif; ?>
                     </div>
