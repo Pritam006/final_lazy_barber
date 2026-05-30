@@ -1,0 +1,240 @@
+<?php
+session_start();
+require_once 'config/database.php';
+require_once 'classes/Auth.php';
+
+$auth = new Auth($pdo);
+$error = '';
+$success = '';
+
+if (isset($_GET['route'])) {
+    $route = $_GET['route'];
+    if (isset($_GET['id'])) {
+        $route .= '?id=' . $_GET['id'];
+    }
+    $_SESSION['redirect_to'] = $route;
+}
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if (isset($_POST['action']) && $_POST['action'] == 'register') {
+        $name = $_POST['name'] ?? '';
+        $email = $_POST['email'] ?? '';
+        $phone = $_POST['phone'] ?? '';
+        $password = $_POST['password'] ?? '';
+        $role = $_POST['role'] ?? 'customer';
+        $shopid = ($role === 'barber' && !empty($_POST['shopid'])) ? $_POST['shopid'] : null;
+        
+        $isNewShop = false;
+        if ($shopid === 'new') {
+            $isNewShop = true;
+            $n_name = $_POST['new_shop_name'];
+            $n_addr = $_POST['new_shop_address'];
+            $n_sub = $_POST['new_shop_suburb'];
+            
+            $stmtShop = $pdo->prepare("INSERT INTO SHOPS (name, address, suburb) VALUES (?, ?, ?)");
+            $stmtShop->execute([$n_name, $n_addr, $n_sub]);
+            $shopid = $pdo->lastInsertId();
+        }
+        
+        $res = $auth->register($name, $email, $password, $phone, $role, $shopid);
+        
+        if ($res['success'] && $isNewShop) {
+            $stmtUsr = $pdo->prepare("UPDATE USERS SET is_shopowner = 1 WHERE email = ?");
+            $stmtUsr->execute([$email]);
+        }
+        if ($res['success']) {
+            $success = $res['message'];
+        } else {
+            $error = $res['message'];
+        }
+    } elseif (isset($_POST['action']) && $_POST['action'] == 'login') {
+        $email = $_POST['email'] ?? '';
+        $password = $_POST['password'] ?? '';
+        
+        $res = $auth->login($email, $password);
+        if ($res['success']) {
+            // Smart routing redirect
+            if (isset($_SESSION['redirect_to'])) {
+                $url = $_SESSION['redirect_to'];
+                unset($_SESSION['redirect_to']);
+                header("Location: $url");
+            } else {
+                if ($_SESSION['role'] === 'barber') {
+                    header("Location: barber_dashboard.php");
+                } else {
+                    header("Location: dashboard.php");
+                }
+            }
+            exit;
+        } else {
+            $error = $res['message'];
+        }
+    }
+}
+
+// Fetch all shops for barber registration
+$shopsStmt = $pdo->query("SELECT shopid, name FROM SHOPS ORDER BY name ASC");
+$all_shops = $shopsStmt->fetchAll();
+
+// Check if we should show register tab by default
+$is_register = isset($_GET['action']) && $_GET['action'] == 'register';
+$smart_msg = $_GET['msg'] ?? '';
+
+include 'includes/header.php';
+?>
+
+<div class="container py-5 d-flex justify-content-center align-items-center" style="min-height: calc(100vh - 200px); margin-top: 56px;">
+    <div class="glass-card p-4 p-md-5" style="width: 100%; max-width: 500px;">
+        <h2 class="text-center text-white fw-bold mb-4">Welcome</h2>
+        
+        <?php if($error): ?>
+            <div class="alert alert-danger bg-transparent text-danger border-danger"><?php echo htmlspecialchars($error); ?></div>
+        <?php endif; ?>
+        <?php if($success): ?>
+            <div class="alert alert-success bg-transparent text-success border-success"><?php echo htmlspecialchars($success); ?></div>
+        <?php endif; ?>
+        <?php if($smart_msg): ?>
+            <div class="alert alert-info bg-transparent text-info border-info"><?php echo htmlspecialchars($smart_msg); ?></div>
+        <?php endif; ?>
+        <?php if(isset($_SESSION['smart_route_msg'])): ?>
+            <div class="alert alert-info bg-transparent text-info border-info"><?php echo $_SESSION['smart_route_msg']; unset($_SESSION['smart_route_msg']); ?></div>
+        <?php endif; ?>
+
+        <ul class="nav nav-pills nav-justified mb-4 border-bottom border-secondary pb-3" id="authTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link bg-transparent <?php echo !$is_register ? 'active text-white fw-bold' : 'text-grey'; ?>" id="login-tab" data-bs-toggle="tab" data-bs-target="#login" type="button" role="tab">Login</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link bg-transparent <?php echo $is_register ? 'active text-white fw-bold' : 'text-grey'; ?>" id="register-tab" data-bs-toggle="tab" data-bs-target="#register" type="button" role="tab">Register</button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="authTabsContent">
+            <!-- Login Form -->
+            <div class="tab-pane fade <?php echo !$is_register ? 'show active' : ''; ?>" id="login" role="tabpanel">
+                <form method="POST" action="login.php">
+                    <input type="hidden" name="action" value="login">
+                    <div class="mb-3">
+                        <label class="form-label text-light-grey">Email address</label>
+                        <input type="email" name="email" class="form-control bg-dark text-white border-secondary" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label text-light-grey">Password</label>
+                        <input type="password" name="password" class="form-control bg-dark text-white border-secondary" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary-custom w-100 py-2">Sign In</button>
+                </form>
+            </div>
+
+            <!-- Register Form -->
+            <div class="tab-pane fade <?php echo $is_register ? 'show active' : ''; ?>" id="register" role="tabpanel">
+                <form method="POST" action="login.php?action=register">
+                    <input type="hidden" name="action" value="register">
+                    <div class="mb-3">
+                        <label class="form-label text-light-grey">Full Name</label>
+                        <input type="text" name="name" class="form-control bg-dark text-white border-secondary" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-light-grey">Email address</label>
+                        <input type="email" name="email" class="form-control bg-dark text-white border-secondary" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-light-grey">Phone Number</label>
+                        <input type="text" name="phone" class="form-control bg-dark text-white border-secondary" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label text-light-grey">Password</label>
+                        <input type="password" name="password" class="form-control bg-dark text-white border-secondary" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-light-grey">Register As</label>
+                        <div class="d-flex">
+                            <div class="form-check me-4">
+                                <input class="form-check-input" type="radio" name="role" id="roleCustomer" value="customer" checked onchange="toggleShopDropdown()">
+                                <label class="form-check-label text-white" for="roleCustomer">Customer</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="role" id="roleBarber" value="barber" onchange="toggleShopDropdown()">
+                                <label class="form-check-label text-white" for="roleBarber">Barber</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-4" id="shopSelectDiv" style="display: none;">
+                        <label class="form-label text-light-grey">Select Your Shop</label>
+                        <select name="shopid" id="shopid_select" class="form-select bg-dark text-white border-secondary" onchange="toggleNewShopFields()">
+                            <option value="">-- Choose a Shop --</option>
+                            <option value="new">-- Create New Shop --</option>
+                            <?php foreach($all_shops as $s): ?>
+                                <option value="<?php echo $s['shopid']; ?>"><?php echo htmlspecialchars($s['name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div id="newShopFields" style="display: none;" class="mb-4">
+                        <div class="mb-3">
+                            <label class="form-label text-light-grey">New Shop Name</label>
+                            <input type="text" name="new_shop_name" id="new_shop_name" class="form-control bg-dark text-white border-secondary">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-light-grey">Shop Address</label>
+                            <input type="text" name="new_shop_address" id="new_shop_address" class="form-control bg-dark text-white border-secondary">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-light-grey">Suburb</label>
+                            <input type="text" name="new_shop_suburb" id="new_shop_suburb" class="form-control bg-dark text-white border-secondary">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary-custom w-100 py-2">Create Account</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Simple script to toggle active styles for tabs
+    document.querySelectorAll('#authTabs button[data-bs-toggle="tab"]').forEach((t) => {
+        t.addEventListener('shown.bs.tab', (e) => {
+            document.querySelectorAll('#authTabs button').forEach(b => {
+                b.classList.remove('text-white', 'fw-bold');
+                b.classList.add('text-grey');
+            });
+            e.target.classList.add('text-white', 'fw-bold');
+            e.target.classList.remove('text-grey');
+        });
+    });
+
+    function toggleShopDropdown() {
+        var role = document.querySelector('input[name="role"]:checked').value;
+        var shopDiv = document.getElementById('shopSelectDiv');
+        var shopSelect = document.getElementById('shopid_select');
+        var newShopDiv = document.getElementById('newShopFields');
+        
+        if (role === 'barber') {
+            shopDiv.style.display = 'block';
+            shopSelect.required = true;
+        } else {
+            shopDiv.style.display = 'none';
+            shopSelect.required = false;
+            newShopDiv.style.display = 'none';
+        }
+    }
+
+    function toggleNewShopFields() {
+        var shopSelect = document.getElementById('shopid_select').value;
+        var newShopDiv = document.getElementById('newShopFields');
+        if (shopSelect === 'new') {
+            newShopDiv.style.display = 'block';
+            document.getElementById('new_shop_name').required = true;
+            document.getElementById('new_shop_address').required = true;
+            document.getElementById('new_shop_suburb').required = true;
+        } else {
+            newShopDiv.style.display = 'none';
+            document.getElementById('new_shop_name').required = false;
+            document.getElementById('new_shop_address').required = false;
+            document.getElementById('new_shop_suburb').required = false;
+        }
+    }
+</script>
+
+<?php include 'includes/footer.php'; ?>
